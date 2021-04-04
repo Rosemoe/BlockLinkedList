@@ -19,6 +19,16 @@ package io.github.rosemoe.struct;
 import java.util.*;
 import java.util.function.Consumer;
 
+/**
+ * A powerful block linked list with index cache.
+ * It has implemented add(), remove(), set() and get().
+ * add(), set() and get() are cached due to better performance.
+ *
+ * Iterator of this class is rewritten so that we will not find address repeatedly
+ * by invocation from universal iterator implemented by java.lang.AbstractList
+ *
+ * @param <E> Type of elements
+ */
 @SuppressWarnings("unchecked")
 public class BlockLinkedList<E> extends AbstractList<E> {
 
@@ -28,14 +38,25 @@ public class BlockLinkedList<E> extends AbstractList<E> {
     private Block head;
 
     // These are for caching
-    private List<Cache> caches;
+    private final List<Cache> caches;
     private int foundIndex;
     private Block foundBlock;
     private final static int CACHE_COUNT = 8;
-    private final static int CACHE_SWITCH = 10;
+    private final static int CACHE_SWITCH = 30;
 
     public BlockLinkedList() {
         this(16);
+    }
+
+    public BlockLinkedList(int blockSize) {
+        this.blockSize = blockSize;
+        if (blockSize <= 4) {
+            throw new IllegalArgumentException("block size must be bigger than 4");
+        }
+        length = 0;
+        modCount = 0;
+        head = new Block();
+        caches = new ArrayList<>(CACHE_COUNT + 2);
     }
 
     /**
@@ -58,8 +79,12 @@ public class BlockLinkedList<E> extends AbstractList<E> {
         }
         int crossCount = 0;
         while (distance >= fromBlock.size()) {
-            distance -= fromBlock.size();
-            fromBlock = fromBlock.next;
+            if (fromBlock.next != null) {
+                distance -= fromBlock.size();
+                fromBlock = fromBlock.next;
+            } else {
+                break;
+            }
             crossCount++;
         }
         if (crossCount >= CACHE_SWITCH) {
@@ -81,24 +106,16 @@ public class BlockLinkedList<E> extends AbstractList<E> {
         }
     }
 
-    public BlockLinkedList(int blockSize) {
-        this.blockSize = blockSize;
-        if (blockSize <= 4) {
-            throw new IllegalArgumentException("block size must be bigger than 4");
-        }
-        length = 0;
-        modCount = 0;
-        head = new Block();
-    }
-
     @Override
     public void add(int index, E element) {
         if (index < 0 || index > size()) {
             throw new ArrayIndexOutOfBoundsException("index = " + index + ", length = " + size());
         }
+        findBlock1(index);
         invalidateCacheFrom(index);
         // Find the block
-        Block block = head;
+        Block block = foundBlock;
+        index = foundIndex;
         while (index > block.size()) {
             if (block.next == null) {
                 // No next block available
@@ -141,7 +158,7 @@ public class BlockLinkedList<E> extends AbstractList<E> {
         // Delete blank block
         if (block.size() == 0 && previous != null) {
             previous.next = block.next;
-        } else if (block.size() < blockSize / 3 && previous != null && previous.size() + block.size() < blockSize / 2) {
+        } else if (block.size() < blockSize / 4 && previous != null && previous.size() + block.size() < blockSize / 2) {
             // Merge small pieces
             previous.next = block.next;
             System.arraycopy(block.data, 0, previous.data, previous.size, block.size);
@@ -157,14 +174,8 @@ public class BlockLinkedList<E> extends AbstractList<E> {
         if (index < 0 || index >= size()) {
             throw new ArrayIndexOutOfBoundsException("index = " + index + ", length = " + size());
         }
-        // Find the block
-        Block block = head;
-        while (index >= block.size()) {
-            // Go to next block
-            index -= block.size();
-            block = block.next;
-        }
-        return (E) block.set(index, element);
+        findBlock1(index);
+        return (E) foundBlock.set(foundIndex, element);
     }
 
     @Override
@@ -172,14 +183,8 @@ public class BlockLinkedList<E> extends AbstractList<E> {
         if (index < 0 || index >= size()) {
             throw new ArrayIndexOutOfBoundsException("index = " + index + ", length = " + size());
         }
-        // Find the block
-        Block block = head;
-        while (index >= block.size()) {
-            // Go to next block
-            index -= block.size();
-            block = block.next;
-        }
-        return (E) block.get(index);
+        findBlock1(index);
+        return (E) foundBlock.get(foundIndex);
     }
 
     @Override
