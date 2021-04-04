@@ -29,8 +29,13 @@ public class BlockLinkedListTest {
             list.add(value);
         }
         list.remove(list.size() - 1);
-        for (int i = 0; i < times / 2; i++) {
-            list.get(random.nextInt(list.size()));
+        for (int i = 0; i < times / 16; i++) {
+            int idx = random.nextInt(list.size());
+            if(random.nextBoolean()) {
+                list.remove(idx);
+            } else {
+                list.get(idx);
+            }
         }
         System.out.println("Object:" + list.getClass().getSimpleName() + " used " + (System.nanoTime() - start) / 1e6 + "ms");
     }
