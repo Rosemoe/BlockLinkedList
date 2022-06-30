@@ -217,6 +217,7 @@ public class BlockLinkedList<E> extends AbstractList<E> {
             deleteLength -= (end - begin);
             previous = block;
             block = block.next;
+            begin = 0;
         }
         length -= (toIndex - fromIndex);
     }
@@ -291,7 +292,7 @@ public class BlockLinkedList<E> extends AbstractList<E> {
         public void separate() {
             Block oldNext = this.next;
             Block newNext = new Block();
-            final int divPoint = blockSize / 2;
+            final int divPoint = blockSize * 3 / 4;
             System.arraycopy(this.data, divPoint, newNext.data, 0, this.size - divPoint);
             newNext.size = this.size - divPoint;
             this.size = divPoint;
